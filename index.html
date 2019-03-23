@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Q Research General</title>
+<style>
+body {
+  background: #EEF2FF;
+  color: black;
+  font-family: arial,helvetica,sans-serif;
+  font-size: 11pt;
+  margin: 0 4px;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+.post {
+  background: #D6DAF0;
+  margin: 4px;
+  padding: 5px;
+  display: inline-block;
+  word-wrap: break-word;
+  white-space: pre-wrap;
+}
+.file {
+  display: inline-block;
+  vertical-align: top;
+  margin: 0 20px 10px 0;
+  padding: 5px;
+}
+.intro {
+  margin: 0.5em 0;
+  padding: 0;
+  padding-bottom: 0.2em;
+}
+.body-line {
+	display: block;
+	margin: 0;
+  min-height: 11pt;
+}
+.subject {
+  color: #0F0C5D;
+  font-weight: bold;
+}
+.name {
+  color: #117743;
+  font-weight: bold;
+}
+.heading {
+  color: #AF0A0F;
+  font-size: 12pt;
+  font-weight: bold;
+}
+.ltr {
+	direction: ltr;
+}
+.rtl {
+	direction: rtl;
+	font-family: Tahoma;
+}
+.detected {
+  background: #FAF8F8;
+  color: #3060A8;
+  padding: 0 1px;
+}
+.spoiler {
+  background: black;
+  color: black;
+  padding: 0 1px;
+}
+.spoiler:hover {
+  color: white;
+}
+.quote {
+  color: #789922;
+}
+.rquote {
+  color: #E0727F;
+}
+</style>
+<script>
+const interval = 30 // number of seconds to refresh page
+const regexLinks = /<a onclick="highlightReply\('(\d+)', event\);" href="\/qresearch\/res\/(\d+).html#(\d+)">/g
+const weekDay = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ]
+function d2 (str) { return ('0' + str).slice(-2) }
+function timestamp (time) {
+  const dt = new Date(time * 1000)
+  const hours = d2(dt.getHours())
+  const minutes = d2(dt.getMinutes())
+  const seconds = d2(dt.getSeconds())
+  const month = d2(dt.getMonth() + 1)
+  const date = d2(dt.getDate())
+  const year = d2(dt.getFullYear())
+  const day = weekDay[dt.getDay()]
+  return month + '/' + date + '/' + year + ' (' + day + ') ' + hours + ':' + minutes + ':' + seconds
+}
+function httpGetAsync(theUrl, callback) {
+    const xmlHttp = new XMLHttpRequest()
+    xmlHttp.onreadystatechange = function () {
+        if (xmlHttp.readyState == 4 && xmlHttp.status == 200) callback(xmlHttp.responseText)
+    }
+    xmlHttp.open("GET", theUrl, true) // true for asynchronous
+    xmlHttp.send(null)
+}
+function getLatestIssueNo(next) {
+  httpGetAsync('https://8ch.net/qresearch/catalog.json', (res) => {
+    const json = JSON.parse(res)
+    let maxIssue = 0; let maxCode = 0
+    json.forEach((ele) => {
+      ele.threads.forEach((thread) => {
+        if (!thread.sub) return
+        if ((arr = thread.sub.match(/^Q Research General #(\d+):/)) !== null) {
+          if (thread.no > maxCode) { maxIssue = arr[1]; maxCode = thread.no }
+        }
+      })
+    })
+    document.title = 'Q Research General #' + maxIssue
+    next(maxCode)
+  })
+}
+function fetchIssue(code) {
+  let maxPostNo = 0
+  const inx = []
+  const contentDiv = document.getElementById('content')
+  fetch()
+  const timer = setInterval(fetch, interval * 1000)
+  function fetch () {  // fetch latest issue
+    httpGetAsync('https://8ch.net/qresearch/res/' + code + '.json', (r) => {
+      const js = JSON.parse(r)
+      if (js.posts.length >= 751) clearInterval(timer)
+//      console.log(js.posts)
+      js.posts.forEach((post) => {
+        if (post.no <= maxPostNo) return
+        else maxPostNo = post.no
+        const pos = createPost(post, code)
+        contentDiv.appendChild(document.createElement('br'))
+        const postDiv = document.createElement('div')
+        postDiv.className = 'post'
+        postDiv.innerHTML = pos.str
+        contentDiv.appendChild(postDiv)
+
+        inx[post.no] = 0
+        pos.links.forEach((postNo) => {
+          if (postNo < code || inx[postNo] === undefined ) return
+          ++inx[postNo]
+          document.getElementById('link_' + postNo).innerHTML += '<a href=#' + post.no + '>  >>' + post.no + '</a>'
+        })
+      })
+
+      // update index
+      const index = []
+      Object.entries(inx).forEach(([key, val]) => { index.push({ no: key, num: val }) })
+      index.sort((a, b) => { return b.num - a.num })
+      let inxstr = '<br><span class="heading">Posts: ' + contentDiv.childElementCount / 2 + '</span><br>'
+      index.forEach((obj) => { if (obj.num > 0) inxstr += '<a href=#' + obj.no + '>' + obj.no + ' (' + obj.num + ')</a><br>' })
+      document.getElementById('index').innerHTML = inxstr
+    })
+  }
+}
+function createPost(post, code) {
+  str = '<a id=' + post.no + '></a><p class=intro>' +
+  (post.sub ? '<span class=subject>' + post.sub + '</span> ' : '') +
+  '<span class=name>' + post.name + '</span> ' +
+  timestamp(post.time) +
+  ' ID: ' + post.id +
+  ' No.<a href="https://8ch.net/qresearch/res/' + code + '.html#' + post.no + '" target="+blank">' + post.no + '</a>' +
+  '<span id=link_' + post.no + '> Replies: </span>' + '</p>'
+  const files = []
+  if (post.filename) {
+    files.push([ post.tim, post.filename, post.ext, post.tn_w, post.tn_h ])
+    if (post.extra_files) {
+      post.extra_files.forEach((p) => { files.push([ p.tim, p.filename, p.ext, p.tn_w, p.tn_h ]) })
+    }
+  }
+  files.forEach((f) => {
+    let width = f[3]
+    let height = f[4]
+    const ext = f[2]
+    let imgExt = ext
+    if (ext === '.mp4' || ext === '.webm') imgExt = '.jpg'
+    let srcPath = 'https://media.8ch.net/file_store/thumb/' + f[0] + imgExt + '/' + encodeURIComponent(f[1]) + imgExt
+    if (ext === '.pdf') srcPath = 'https://media.8ch.net/static/file.png'
+    const minWidth = 67
+    if (width < minWidth) { height = Math.round(minWidth * height / width); width = minWidth }
+    str += '<span class="file" style="width:' + width + 'px;">' + f[1] + ext +
+    '<a href="https://media.8ch.net/file_store/'+ f[0] + ext + '/' + encodeURIComponent(f[1]) + ext + '" target="_blank">' +
+    '<img style="width:' + width + 'px; height:' + height + ';"' +
+    ' src="' + srcPath  + '"></a>' +
+    '</span>'
+  })
+  if (post.embed) str += post.embed.replace(/src="\/\//, 'src="https://')
+  str += '<div>' + post.com + '</div>'
+
+  // make posters' urls into links
+  str = str.replace(/(https?:)<em>\/\/<\/em>([^\s<]+)/g,
+    (match, c1, c2) => { const u = c1 + '//' + c2; return '<a href="' + u + '" target="_blank">' + u + '</a>' }
+  )
+  // modify post-to-post links (>> xxxxxx) to work internally or externally
+  str = str.replace(regexLinks, (match, c1, c2, c3) => {
+      if (c1 >= code) return '<a href=#' + c1 + '>'
+      return '<a href="https://8ch.net/qresearch/res/' + c2 + '.html#' + c3 + '" target="_blank">'
+    }
+  )
+
+  const links = []
+  while ((result = regexLinks.exec(post.com)) !== null) { if (!links.includes(result[1])) links.push(result[1]) }
+  return { str: str, links: links }
+
+}
+window.onload = function () { getLatestIssueNo(fetchIssue) }
+</script>
+</head>
+<body>
+  <div id="main" style='width: 100%; overflow: hidden'>
+    <div id="index" style='width: 110px; float: left'></div>
+    <div id="content" style='margin-left: 110px'></div>
+  </div>
+</body>
+</html>
+
