@@ -5,7 +5,6 @@
 <style>
 body {
   background: #EEF2FF;
-  color: black;
   font-family: arial,helvetica,sans-serif;
   font-size: 11pt;
   margin: 0 4px;
@@ -13,10 +12,13 @@ body {
   padding-right: 4px;
 }
 .post {
+  color: black;
   background: #D6DAF0;
   margin: 4px;
-  padding: 5px;
+  padding: 6px;
   display: inline-block;
+  max-width: 93%;
+  border: 3px solid #B7C5D9;
   word-wrap: break-word;
   white-space: pre-wrap;
 }
@@ -75,10 +77,18 @@ body {
 .rquote {
   color: #E0727F;
 }
+.pop {
+  background-color: #D6BAD0;
+  position: fixed;
+  visibility: hidden;
+  z-index: 1;
+}
 </style>
 <script>
 const interval = 30 // number of seconds to refresh page
-const regexLinks = /<a onclick="highlightReply\('(\d+)', event\);" href="\/qresearch\/res\/(\d+).html#(\d+)">/g
+let closed // mouseleave event has occurred
+const oldThreads = []
+const inx = [] // post index
 const weekDay = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ]
 function d2 (str) { return ('0' + str).slice(-2) }
 function timestamp (time) {
@@ -91,6 +101,62 @@ function timestamp (time) {
   const year = d2(dt.getFullYear())
   const day = weekDay[dt.getDay()]
   return month + '/' + date + '/' + year + ' (' + day + ') ' + hours + ':' + minutes + ':' + seconds
+}
+function style (p, e) {
+  const left = p.getBoundingClientRect().left
+  e.removeChild(e.firstChild) // remove anchor
+  const width = window.innerWidth
+  e.style.top = '0px'
+  if (left > width / 2) {
+    e.style.left = '110px'
+    e.style.width = (left - 110 - 35) + 'px'
+  }
+  else e.style.left = (left + 100) + 'px'
+  e.style.visibility = 'visible'
+}
+function pop (ev) {
+  const p = ev.srcElement
+  const match = /#(\d+)$/.exec(p.href)
+  if (match === null) return
+  const e = p.firstElementChild
+  e.innerHTML = document.getElementById('content').children[2 * inx[match[1]].ix + 1].innerHTML
+  style(p, e)
+}
+function expop (ev) {
+  const p = ev.srcElement
+  const match = /(\d+).html#(\d+)$/.exec(p.href)
+  if (match === null) return
+  const e = p.firstElementChild
+  function update(j) {
+    j.posts.forEach((post) => {
+      if (('' + post.no) === match[2]) {
+        e.innerHTML = createPost(post, match[1]).str
+        style(p, e)
+      }
+    })
+  }
+  let js = null
+  oldThreads.forEach((thread) => { if (match[1] === '' + thread.posts[0].no) js = thread })
+  if (js) { update(js); return }
+  closed = false
+  setTimeout( // cursor must be over link for 1/2 second
+    () => {
+      if (closed) return
+      httpGetAsync('https://8ch.net/qresearch/res/' + match[1] + '.json', (r) => {
+        if (closed) return
+        const js = JSON.parse(r)
+        oldThreads.push(js)
+        update(js)
+      })
+    },
+    500
+  )
+}
+function stop (e) {
+  e = e.srcElement.firstElementChild
+  e.innerHTML = ''
+  e.style.visibility = 'hidden'
+  closed = true
 }
 function httpGetAsync(theUrl, callback) {
     const xmlHttp = new XMLHttpRequest()
@@ -112,13 +178,13 @@ function getLatestIssueNo(next) {
         }
       })
     })
-    document.title = 'Q Research General #' + maxIssue
+    document.title += ' #' + maxIssue
     next(maxCode)
   })
 }
 function fetchIssue(code) {
   let maxPostNo = 0
-  const inx = []
+  let ix = 0
   const contentDiv = document.getElementById('content')
   fetch()
   const timer = setInterval(fetch, interval * 1000)
@@ -135,23 +201,58 @@ function fetchIssue(code) {
         const postDiv = document.createElement('div')
         postDiv.className = 'post'
         postDiv.innerHTML = pos.str
+        const pops = postDiv.getElementsByClassName("popup")
+        for (let i = 0; i < pops.length; i++) {
+          pops[i].onmouseenter = pop
+          pops[i].onmouseleave = stop
+        }
+        const expops = postDiv.getElementsByClassName("expopup")
+        for (let i = 0; i < expops.length; i++) {
+          expops[i].onmouseenter = expop
+          expops[i].onmouseleave = stop
+        }
         contentDiv.appendChild(postDiv)
 
-        inx[post.no] = 0
+        inx[post.no] = { ix: ix++, no: post.no, num: 0 }
         pos.links.forEach((postNo) => {
           if (postNo < code || inx[postNo] === undefined ) return
-          ++inx[postNo]
-          document.getElementById('link_' + postNo).innerHTML += '<a href=#' + post.no + '>  >>' + post.no + '</a>'
+          ++inx[postNo].num
+          const link = document.createElement('a')
+          link.className = 'popup'
+          link.href = '#' + post.no
+          link.innerHTML = '<span class="post pop"></span>>>' + post.no
+          link.onmouseenter = pop
+          link.onmouseleave = stop
+          const space = document.createElement('span')
+          space.innerHTML = ' '
+          const linker = document.getElementById('link_' + postNo)
+          linker.appendChild(space)
+          linker.appendChild(link)
         })
       })
 
       // update index
-      const index = []
-      Object.entries(inx).forEach(([key, val]) => { index.push({ no: key, num: val }) })
+      const index = inx.slice(0)
       index.sort((a, b) => { return b.num - a.num })
-      let inxstr = '<br><span class="heading">Posts: ' + contentDiv.childElementCount / 2 + '</span><br>'
-      index.forEach((obj) => { if (obj.num > 0) inxstr += '<a href=#' + obj.no + '>' + obj.no + ' (' + obj.num + ')</a><br>' })
-      document.getElementById('index').innerHTML = inxstr
+      const ind = document.getElementById('index')
+      while (ind.hasChildNodes()) ind.removeChild(ind.firstChild);
+      const head = document.createElement('span')
+      head.innerHTML = '<span class="heading">Posts: ' + contentDiv.childElementCount / 2 + '</span>'
+      ind.appendChild(document.createElement('br'))
+      ind.appendChild(head)
+      ind.appendChild(document.createElement('br'))
+      index.forEach((obj) => {
+        if (obj.num > 0) {
+          const link = document.createElement('a')
+          link.href = '#' + obj.no
+          link.class = 'popup'
+          link.innerHTML = '<span class="post pop"></span>' + obj.no + ' (' + obj.num + ')'
+          link.onmouseenter = pop
+          link.onmouseleave = stop
+          ind.appendChild(link)
+          ind.appendChild(document.createElement('br'))
+        }
+      })
     })
   }
 }
@@ -162,7 +263,7 @@ function createPost(post, code) {
   timestamp(post.time) +
   ' ID: ' + post.id +
   ' No.<a href="https://8ch.net/qresearch/res/' + code + '.html#' + post.no + '" target="+blank">' + post.no + '</a>' +
-  '<span id=link_' + post.no + '> Replies: </span>' + '</p>'
+  '<span id=link_' + post.no + '> Replies:</span>' + '</p>'
   const files = []
   if (post.filename) {
     files.push([ post.tim, post.filename, post.ext, post.tn_w, post.tn_h ])
@@ -194,12 +295,12 @@ function createPost(post, code) {
     (match, c1, c2) => { const u = c1 + '//' + c2; return '<a href="' + u + '" target="_blank">' + u + '</a>' }
   )
   // modify post-to-post links (>> xxxxxx) to work internally or externally
+  const regexLinks = /<a onclick="highlightReply\('(\d+)', event\);" href="\/qresearch\/res\/(\d+).html#(\d+)">/g
   str = str.replace(regexLinks, (match, c1, c2, c3) => {
-      if (c1 >= code) return '<a href=#' + c1 + '>'
-      return '<a href="https://8ch.net/qresearch/res/' + c2 + '.html#' + c3 + '" target="_blank">'
+      if (c1 >= code) return '<a class="popup" href=#' + c1 + '><span class="post pop"></span>'
+      return '<a class="expopup" href="https://8ch.net/qresearch/res/' + c2 + '.html#' + c3 + '" target="_blank"><span class="post pop"></span>'
     }
   )
-
   const links = []
   while ((result = regexLinks.exec(post.com)) !== null) { if (!links.includes(result[1])) links.push(result[1]) }
   return { str: str, links: links }
