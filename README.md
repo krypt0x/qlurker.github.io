@@ -14,3 +14,4 @@ The HTML file can be saved to your desktop and run from there with a click.
 * If the post is in a past bread, a new window opens with the standard front end
 * Click on a post number in the left margin to jump to a popular post in the current bread
 * When the post count reaches 751, refresh the page to go to the next bread
+* Only tested in Chrome browswer
