@@ -85,10 +85,15 @@ body {
 }
 </style>
 <script>
-const interval = 30 // number of seconds to refresh page
+let interval = 30 // number of seconds to refresh page
+let timer
+let currentThread
 let closed // mouseleave event has occurred
 const oldThreads = []
 const inx = [] // post index
+let maxPostNo = 0
+let ix = 0
+let contentDiv
 const weekDay = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat' ]
 function d2 (str) { return ('0' + str).slice(-2) }
 function timestamp (time) {
@@ -101,6 +106,15 @@ function timestamp (time) {
   const year = d2(dt.getFullYear())
   const day = weekDay[dt.getDay()]
   return month + '/' + date + '/' + year + ' (' + day + ') ' + hours + ':' + minutes + ':' + seconds
+}
+function refresh(t, delta) {
+  const inputs = document.getElementsByTagName('input')
+  for (let i = 0; i < inputs.length; i++) inputs[i].style.fontWeight = 'normal'
+  t.style.fontWeight = 'bold'
+  interval = delta
+  clearInterval(timer)
+  if (interval === 0) fetch()
+  else timer = setInterval(fetch, interval * 1000)
 }
 function style (p, e) {
   const left = p.getBoundingClientRect().left
@@ -169,100 +183,102 @@ function httpGetAsync(theUrl, callback) {
 function getLatestIssueNo(next) {
   httpGetAsync('https://8ch.net/qresearch/catalog.json', (res) => {
     const json = JSON.parse(res)
-    let maxIssue = 0; let maxCode = 0
+    let maxIssue = 0; currentThread = 0
     json.forEach((ele) => {
       ele.threads.forEach((thread) => {
         if (!thread.sub) return
         if ((arr = thread.sub.match(/^Q Research General #(\d+):/)) !== null) {
-          if (thread.no > maxCode) { maxIssue = arr[1]; maxCode = thread.no }
+          if (thread.no > currentThread) { maxIssue = arr[1]; currentThread = thread.no }
         }
       })
     })
     document.title += ' #' + maxIssue
-    next(maxCode)
+    fetch()
+    timer = setInterval(fetch, interval * 1000)
   })
 }
-function fetchIssue(code) {
-  let maxPostNo = 0
-  let ix = 0
-  const contentDiv = document.getElementById('content')
-  fetch()
-  const timer = setInterval(fetch, interval * 1000)
-  function fetch () {  // fetch latest issue
-    const ind = document.getElementById('index')
-    while (ind.hasChildNodes()) ind.removeChild(ind.firstChild);
-    httpGetAsync('https://8ch.net/qresearch/res/' + code + '.json', (r) => {
-      const js = JSON.parse(r)
-      if (js.posts.length >= 751) clearInterval(timer)
+function fetch () {  // fetch latest issue
+  const ind = document.getElementById('index')
+  while (ind.hasChildNodes()) ind.removeChild(ind.firstChild);
+  httpGetAsync('https://8ch.net/qresearch/res/' + currentThread + '.json', (r) => {
+    const js = JSON.parse(r)
+    if (js.posts.length >= 751) clearInterval(timer)
 //      console.log(js.posts)
-      js.posts.forEach((post) => {
-        if (post.no <= maxPostNo) return
-        else maxPostNo = post.no
-        const pos = createPost(post, code)
-        contentDiv.appendChild(document.createElement('br'))
-        const postDiv = document.createElement('div')
-        postDiv.className = 'post'
-        postDiv.innerHTML = pos.str
-        const pops = postDiv.getElementsByClassName("popup")
-        for (let i = 0; i < pops.length; i++) {
-          pops[i].onmouseenter = pop
-          pops[i].onmouseleave = stop
-        }
-        const expops = postDiv.getElementsByClassName("expopup")
-        for (let i = 0; i < expops.length; i++) {
-          expops[i].onmouseenter = expop
-          expops[i].onmouseleave = stop
-        }
-        contentDiv.appendChild(postDiv)
+    js.posts.forEach((post) => {
+      if (post.no <= maxPostNo) return
+      else maxPostNo = post.no
+      const pos = createPost(post)
+      contentDiv.appendChild(document.createElement('br'))
+      const postDiv = document.createElement('div')
+      postDiv.className = 'post'
+      postDiv.innerHTML = pos.str
+      const pops = postDiv.getElementsByClassName("popup")
+      for (let i = 0; i < pops.length; i++) {
+        pops[i].onmouseenter = pop
+        pops[i].onmouseleave = stop
+      }
+      const expops = postDiv.getElementsByClassName("expopup")
+      for (let i = 0; i < expops.length; i++) {
+        expops[i].onmouseenter = expop
+        expops[i].onmouseleave = stop
+      }
+      contentDiv.appendChild(postDiv)
 
-        inx[post.no] = { ix: ix++, no: post.no, num: 0 }
-        pos.links.forEach((postNo) => {
-          if (postNo < code || inx[postNo] === undefined ) return
-          ++inx[postNo].num
-          const link = document.createElement('a')
-          link.className = 'popup'
-          link.href = '#' + post.no
-          link.innerHTML = '<span class="post pop"></span>>>' + post.no
-          link.onmouseenter = pop
-          link.onmouseleave = stop
-          const space = document.createElement('span')
-          space.innerHTML = ' '
-          const linker = document.getElementById('link_' + postNo)
-          linker.appendChild(space)
-          linker.appendChild(link)
-        })
-      })
-
-      // update index
-      const index = inx.slice(0)
-      index.sort((a, b) => { return b.num - a.num })
-      const head = document.createElement('span')
-      head.innerHTML = '<span class="heading">Posts: ' + contentDiv.childElementCount / 2 + '</span>'
-      ind.appendChild(document.createElement('br'))
-      ind.appendChild(head)
-      ind.appendChild(document.createElement('br'))
-      index.forEach((obj) => {
-        if (obj.num > 0) {
-          const link = document.createElement('a')
-          link.href = '#' + obj.no
-          link.class = 'popup'
-          link.innerHTML = '<span class="post pop"></span>' + obj.no + ' (' + obj.num + ')'
-          link.onmouseenter = pop
-          link.onmouseleave = stop
-          ind.appendChild(link)
-          ind.appendChild(document.createElement('br'))
-        }
+      inx[post.no] = { ix: ix++, no: post.no, num: 0 }
+      pos.links.forEach((postNo) => {
+        if (postNo < currentThread || inx[postNo] === undefined ) return
+        ++inx[postNo].num
+        const link = document.createElement('a')
+        link.className = 'popup'
+        link.href = '#' + post.no
+        link.innerHTML = '<span class="post pop"></span>>>' + post.no
+        link.onmouseenter = pop
+        link.onmouseleave = stop
+        const space = document.createElement('span')
+        space.innerHTML = ' '
+        const linker = document.getElementById('link_' + postNo)
+        linker.appendChild(space)
+        linker.appendChild(link)
       })
     })
-  }
+
+    // update index
+    const index = inx.slice(0)
+    index.sort((a, b) => { return b.num - a.num })
+    const head = document.createElement('span')
+    head.innerHTML = '<span class="heading">Update:</span><br>'
+    const rate = [30, 120, 600, 0]
+    for (let i = 0; i < 4; i++) {
+      head.innerHTML += '<input type="button"'
+      + (rate[i] === interval ? ' style="font-weight: bold;"' : '')
+      + ' value="' + (rate[i] === 0 ? 'man' : rate[i] + 's') + '"'
+      + ' onclick="refresh(this, ' + rate[i] + ')"> '
+    }
+    head.innerHTML += '<br><br><span class="heading">Posts: ' + contentDiv.childElementCount / 2 + '</span>'
+    ind.appendChild(document.createElement('br'))
+    ind.appendChild(head)
+    ind.appendChild(document.createElement('br'))
+    index.forEach((obj) => {
+      if (obj.num > 0) {
+        const link = document.createElement('a')
+        link.href = '#' + obj.no
+        link.class = 'popup'
+        link.innerHTML = '<span class="post pop"></span>' + obj.no + ' (' + obj.num + ')'
+        link.onmouseenter = pop
+        link.onmouseleave = stop
+        ind.appendChild(link)
+        ind.appendChild(document.createElement('br'))
+      }
+    })
+  })
 }
-function createPost(post, code) {
+function createPost(post) {
   str = '<a id=' + post.no + '></a><p class=intro>' +
   (post.sub ? '<span class=subject>' + post.sub + '</span> ' : '') +
   '<span class=name>' + post.name + '</span> ' +
   timestamp(post.time) +
   ' ID: ' + post.id +
-  ' No.<a href="https://8ch.net/qresearch/res/' + code + '.html#' + post.no + '" target="+blank">' + post.no + '</a>' +
+  ' No.<a href="https://8ch.net/qresearch/res/' + currentThread + '.html#' + post.no + '" target="+blank">' + post.no + '</a>' +
   '<span id=link_' + post.no + '> Replies:</span>' + '</p>'
   const files = []
   if (post.filename) {
@@ -297,7 +313,7 @@ function createPost(post, code) {
   // modify post-to-post links (>> xxxxxx) to work internally or externally
   const regexLinks = /<a onclick="highlightReply\('(\d+)', event\);" href="\/qresearch\/res\/(\d+).html#(\d+)">/g
   str = str.replace(regexLinks, (match, c1, c2, c3) => {
-      if (c1 >= code) return '<a class="popup" href=#' + c1 + '><span class="post pop"></span>'
+      if (c1 >= currentThread) return '<a class="popup" href=#' + c1 + '><span class="post pop"></span>'
       return '<a class="expopup" href="https://8ch.net/qresearch/res/' + c2 + '.html#' + c3 + '" target="_blank"><span class="post pop"></span>'
     }
   )
@@ -306,7 +322,10 @@ function createPost(post, code) {
   return { str: str, links: links }
 
 }
-window.onload = function () { getLatestIssueNo(fetchIssue) }
+window.onload = function () {
+  contentDiv = document.getElementById('content')
+  getLatestIssueNo()
+}
 </script>
 </head>
 <body>
