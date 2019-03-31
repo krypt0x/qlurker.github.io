@@ -189,6 +189,8 @@ function fetchIssue(code) {
   fetch()
   const timer = setInterval(fetch, interval * 1000)
   function fetch () {  // fetch latest issue
+    const ind = document.getElementById('index')
+    while (ind.hasChildNodes()) ind.removeChild(ind.firstChild);
     httpGetAsync('https://8ch.net/qresearch/res/' + code + '.json', (r) => {
       const js = JSON.parse(r)
       if (js.posts.length >= 751) clearInterval(timer)
@@ -234,8 +236,6 @@ function fetchIssue(code) {
       // update index
       const index = inx.slice(0)
       index.sort((a, b) => { return b.num - a.num })
-      const ind = document.getElementById('index')
-      while (ind.hasChildNodes()) ind.removeChild(ind.firstChild);
       const head = document.createElement('span')
       head.innerHTML = '<span class="heading">Posts: ' + contentDiv.childElementCount / 2 + '</span>'
       ind.appendChild(document.createElement('br'))
