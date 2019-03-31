@@ -7,7 +7,7 @@ The HTML file can be saved to your desktop and run from there with a click.
 
 ### Usage
 * Lurking only, unless you go to the standard front end where you can make a new post
-* Latest posts loaded every 30 seconds, unless another update timer button is clicked
+* Latest posts loaded every 120 seconds, unless another update timer button is clicked
 * Click on an image or file thumbnail to see the full version in a new window
 * Click on a post No. at the top of a post (e.g. No.5834432) to go to the standard front end
 * Click on a post link (e.g. >>5834662) to jump to the post
