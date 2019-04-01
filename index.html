@@ -295,7 +295,7 @@ function createPost(post) {
     if (ext === '.mp4' || ext === '.webm') imgExt = '.jpg'
     let srcPath = 'https://media.8ch.net/file_store/thumb/' + f[0] + imgExt + '/' + encodeURIComponent(f[1]) + imgExt
     if (ext === '.pdf') srcPath = 'https://media.8ch.net/static/file.png'
-    const minWidth = 67
+    const minWidth = 100
     if (width < minWidth) { height = Math.round(minWidth * height / width); width = minWidth }
     str += '<span class="file" style="width:' + width + 'px;">' + f[1] + ext +
     '<a href="https://media.8ch.net/file_store/'+ f[0] + ext + '/' + encodeURIComponent(f[1]) + ext + '" target="_blank">' +
