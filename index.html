@@ -181,18 +181,10 @@ function httpGetAsync(theUrl, callback) {
     xmlHttp.send(null)
 }
 function getLatestIssueNo(next) {
-  httpGetAsync('https://8ch.net/qresearch/catalog.json', (res) => {
-    const json = JSON.parse(res)
-    let maxIssue = 0; currentThread = 0
-    json.forEach((ele) => {
-      ele.threads.forEach((thread) => {
-        if (!thread.sub) return
-        if ((arr = thread.sub.match(/^Q Research General #(\d+):/)) !== null) {
-          if (thread.no > currentThread) { maxIssue = arr[1]; currentThread = thread.no }
-        }
-      })
-    })
-    document.title += ' #' + maxIssue
+  httpGetAsync('https://8ch.net/qresearch/', (res) => {
+    if ((arr = res.match(/Q Research General #(\d+).*?href="\/qresearch\/res\/(\d+)\.html/)) === null) return
+    currentThread = arr[2]
+    document.title += ' #' + arr[1]
     fetch()
     timer = setInterval(fetch, interval * 1000)
   })
@@ -335,4 +327,3 @@ window.onload = function () {
   </div>
 </body>
 </html>
-
