@@ -180,7 +180,7 @@ function httpGetAsync(theUrl, callback) {
     xmlHttp.open("GET", theUrl, true) // true for asynchronous
     xmlHttp.send(null)
 }
-function getLatestIssueNo(next) {
+function getLatestIssueNo() {
   httpGetAsync('https://8ch.net/qresearch/', (res) => {
     if ((arr = res.match(/Q Research General #(\d+).*?href="\/qresearch\/res\/(\d+)\.html/)) === null) return
     currentThread = arr[2]
